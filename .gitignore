@@ -1,3 +1,6 @@
 *.pyc
 *.pyproj
+*.7z
+*.sln
+*.suo
 data/

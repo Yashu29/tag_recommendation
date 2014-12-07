@@ -149,6 +149,8 @@ def main():
     #print(TID_TO_TAG_LIST)
     for tid, coeff in reversed(sorted_tag_id_to_count):
         print("Confidence: {:4.3f} Tag:{:10}".format((coeff/5), TID_TO_TAG_LIST[tid]))
+    
+    del index
 
 
     
