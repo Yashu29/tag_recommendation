@@ -36,10 +36,12 @@ class MLStripper(HTMLParser):
 class TextsDAO(object):
     """Provides an interface to iterate over the corpus of 
     files, returns the text with all stopwords removed."""
-    def __init__(self, base_dir, db, get_tags = False):
+    def __init__(self, base_dir, db, get_tags = False, get_both=False):
         self.__base_dir = base_dir
         self.__db_name = db
         self.__yeild_tags = get_tags
+        self.__yeild_both = get_both
+        print("The file being accessed is" + str(self.__db_name))
 
     def __iter__(self):
         """files = [f for f in listdir(self.__base_dir) if isfile(join(self.__base_dir, f))]
@@ -52,7 +54,7 @@ class TextsDAO(object):
                 print("..")
                 yield doc.split()
         else:
-            self.conn = sqlite3.connect(os.path.join(self.__base_dir,self.__db_name))
+            self.conn = sqlite3.connect(self.__db_name)
             self.cursor = self.conn.cursor()
             count = 0
             for sid,tags,title,question in self.cursor.execute("select * from posts"):
@@ -60,6 +62,8 @@ class TextsDAO(object):
                 if self.__yeild_tags:
                     print("{}".format(tags))
                     yield (count, self.tokenize(tags.decode("utf-8")))
+                elif self.__yeild_both:
+                    yield (self.tokenize(title.decode("utf-8") + " " + question.decode("utf-8")), tags.decode("utf-8"))
                 else:
                     yield self.tokenize(title.decode("utf-8") + " " + question.decode("utf-8"))
                 count += 1

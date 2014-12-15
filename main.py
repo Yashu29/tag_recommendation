@@ -10,12 +10,14 @@ from gensim import corpora, models, similarities
 
 from TextsDAO import TextsDAO
 from CorpusDAO import DictionaryDAO
+from CorpusDAO import TestCorpusDAO
 from CorpusDAO import CorpusDAO
 from html.parser import HTMLParser
 
 BASE_DIR = "data"
 BASE_META_DIR = "data"
 DB = os.path.join(BASE_META_DIR, "stackoverflow-posts.db")
+DB_COPY = os.path.join(BASE_META_DIR, "copy.db")
 SERIALIZED_CORPUS = os.path.join(BASE_META_DIR, "corpus.mm")
 SERIALIZED_TFIDF = os.path.join(BASE_META_DIR, "tfidf.model")
 SERIALIZED_TFIDF_CORPUS = os.path.join(BASE_META_DIR, "corpus_tfidf.mm")
@@ -40,9 +42,9 @@ class MLStripper(HTMLParser):
 
 def tokenize(string):
         """logic to tokenize a string. Involves removing tags, splitting, lowercasing words etc"""
-        s = MLStripper()
-        s.feed(string)
-        new_s = ' '.join([x for x in re.sub('[^a-zA-Z0-9\n\.]', ' ', s.get_data()).split() if len(x) > 1])
+        #s = MLStripper()
+        #s.feed(string)
+        new_s = ' '.join([x for x in re.sub('[^a-zA-Z0-9\n\.]', ' ', string).split() if len(x) > 1])
         return ' '.join(new_s.split("\n")).split()
 
 def main():
@@ -92,45 +94,7 @@ def main():
         index = similarities.MatrixSimilarity(corpus_lsi, num_features = 200)
         index.save(SIMILARITY_INDEX)
 
-    # At this point we have created the similarity matrix 
-    # we will start finding similarities between a new document
-    # and existing documents, where the dimensions are topics.
-    # similarity will be determined using the cosine distance between 
-    # topic_vector for new document and the topic_vectors for existing documents
-    # in the corpus.
-
-    new_doc = tokenize("""
-        When setting a form's opacity should I use a decimal or double?
-        <p>I want to use a track-bar to change a form's opacity.</p>
-
-        <p>This is my code:</p>
-
-        <pre><code>decimal trans = trackBar1.Value / 5000;
-        this.Opacity = trans;
-        </code></pre>
-
-        <p>When I try to build it, I get this error:</p>
-
-        <blockquote>
-          <p>Cannot implicitly convert type 'decimal' to 'double'.</p>
-        </blockquote>
-
-        <p>I tried making <code>trans</code> a <code>double</code>, but then the control doesn't work. This code has worked fine for me in VB.NET in the past. </p>
-""")
-    vec_bow = dictionary.doc2bow(new_doc)
-    vec_lsi = lsi[vec_bow]
-    #print("Doc vector in LSI space" + str(vec_lsi))
-
-    sims = index[vec_lsi]
-    sims = sorted(enumerate(sims), key=lambda item: -item[1])
-    print("**********************")
-    relevant_similar_documents = sims[0:10]
-    #print(sims[0:10])
-
-    # we have the similarity coefficient with us and a list of documents that 
-    # have the highest similarity to our document.
-
-    # lets load the dictionary and the document_to_tag matrix from the memory
+    # lets load the dictionary and the document_to_tag matrix from the disk
     PID_TO_TAGS_LIST = numpy.load(DOC_TO_TAG).tolist()
     TID_TO_TAG_LIST = numpy.load(TID_TO_TAG).tolist()
     with open(TAG_MAP, "r") as f:
@@ -138,20 +102,35 @@ def main():
     print("{}".format(len(PID_TO_TAGS_LIST)))
     print("{}".format(len(TAG_TO_ID_DICT)))
 
-    TAG_ID_TO_COUNT = {}
-    for doc_id, similartiy_coefficient in relevant_similar_documents:
-        for tag_id in PID_TO_TAGS_LIST[doc_id]:
-            TAG_ID_TO_COUNT[tag_id] = TAG_ID_TO_COUNT.get(tag_id, 0) + similartiy_coefficient
-    sorted_tag_id_to_count = sorted(TAG_ID_TO_COUNT.items(), key=operator.itemgetter(1))
-    highest_coeff = sorted_tag_id_to_count[-1][1]
+    # At this point we have created the similarity matrix 
+    # we will start finding similarities between a new document
+    # and existing documents, where the dimensions are topics.
+    # similarity will be determined using the cosine distance between 
+    # topic_vector for new document and the topic_vectors for existing documents
+    # in the corpus.
+    test_corpus = TestCorpusDAO(BASE_META_DIR, BASE_DIR, DB_COPY)
+    #print("Doc vector in LSI space" + str(vec_lsi))
+    data_file = open( os.path.join(BASE_DIR, "data.csv"), "w")
+    for new_doc, new_tags in test_corpus:
+        vec_lsi = lsi[new_doc]
+        sims = index[vec_lsi]
+        sims = sorted(enumerate(sims), key=lambda item: -item[1])
+        print("**********************")
+        relevant_similar_documents = sims[0:10]
+        TAG_ID_TO_COUNT = {}
+        for doc_id, similartiy_coefficient in relevant_similar_documents:
+            print("Doc {} Sim:{}".format(doc_id, similartiy_coefficient))
+            for tag_id in PID_TO_TAGS_LIST[doc_id]:
+                TAG_ID_TO_COUNT[tag_id] = TAG_ID_TO_COUNT.get(tag_id, 0) + similartiy_coefficient
+        sorted_tag_id_to_count = sorted(TAG_ID_TO_COUNT.items(), key=operator.itemgetter(1))
+        highest_coeff = sorted_tag_id_to_count[-1][1]
 
-    print("Total recommended tags" + str(len(sorted_tag_id_to_count)))
-    #print(TID_TO_TAG_LIST)
-    for tid, coeff in reversed(sorted_tag_id_to_count):
-        print("Confidence: {:4.3f} Tag:{:10}".format((coeff/5), TID_TO_TAG_LIST[tid]))
-    
+        #print(TID_TO_TAG_LIST)
+        for tid, coeff in reversed(sorted_tag_id_to_count):
+            print("{:4.3f}:{}".format((coeff), TID_TO_TAG_LIST[tid]), file=data_file, end=",")
+        print(";" + " ".join(tokenize(new_tags)),file=data_file)
+    data_file.close()
     del index
-
 
     
 

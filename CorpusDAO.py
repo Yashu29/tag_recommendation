@@ -23,6 +23,7 @@ class CorpusDAO(object):
         for post in iterator_text:
             print("C..")
             yield self.__dictionary.doc2bow(post)
+        iterator_text.close()
 
     def getDictionary(self):
         return self.__dictionary
@@ -49,4 +50,21 @@ class DictionaryDAO(object):
 
     def getDictionary(self):
         return self.__dictionary
-                           
+
+
+class TestCorpusDAO(object):
+    def __init__(self, base_metadata_dir, base_dir, db):
+        self.__base_dir = base_dir
+        self.__data_dir = base_dir
+        self.__db = db
+        self.__dictionary = DictionaryDAO(base_metadata_dir, base_dir, db).getDictionary()
+
+    def __iter__(self):
+        iterator_text = TextsDAO(self.__data_dir, self.__db, get_both=True)
+        count = 0
+        for post,tags in iterator_text:
+            count+=1
+            if count%10 == 0:
+                yield (self.__dictionary.doc2bow(post),tags)
+        iterator_text.close()
+
